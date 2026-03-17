@@ -1,44 +1,28 @@
-# AI Research Agent
+# AI Task Execution Agent
 
-A simple AI agent that performs automated research by:
+This project is an autonomous AI agent that can:
+- Search for jobs using Google (SerpAPI)
+- Scrape websites
+- Extract structured data
+- Save results into JSON files
 
-1. Breaking user queries into sub-questions
-2. Searching the web using SerpAPI
-3. Scraping multiple webpages
-4. Synthesizing results into a structured research report using an LLM
+## Example Task
+"Find 5 AI agent jobs and save them to a file"
 
-## Features
-
-- Multi-query research planning
-- Web search integration
-- Web scraping
-- LLM summarization
-- Structured research output
-
-## Tech Stack
-
+## Tools Used
 - LangChain
-- NVIDIA Llama-4 Maverick
+- OpenAI
 - SerpAPI
-- Python
+- BeautifulSoup
 
-## Example
+## Setup
 
-User query:
-"What are AI agents and how are startups using them?"
+bash
+pip install -r requirements.txt
 
-Output:
+Create .env:
 
-Topic  
-Key Insights  
-Important Trends  
-Sources  
-Conclusion
+OPENAI_API_KEY=your_key
+SERPAPI_API_KEY=your_key
 
-## Installation
-
-Clone the repository
-
-```bash
-git clone https://github.com/sahil0052/ai-research-agent.git
-cd ai-research-agent
+Run: python main.py
