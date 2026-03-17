@@ -1,106 +1,98 @@
 from dotenv import load_dotenv
+import os
+import json
+import requests
+from bs4 import BeautifulSoup
+
+from langchain_openai import ChatOpenAI
+from langchain.agents import initialize_agent, Tool
+from langchain.agents import AgentType
+
+from langchain.utilities import SerpAPIWrapper
+
 load_dotenv()
 
-import os
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_community.utilities import SerpAPIWrapper
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+search = SerpAPIWrapper()
 
-model = ChatNVIDIA(
-    model="meta/llama-4-maverick-17b-128e-instruct",
-    temperature=0.7
+def search_jobs(query: str):
+    return search.run(query)
+
+search_tool = Tool(
+    name="Job Search",
+    func=search_jobs,
+    description="Search for AI agent or AI jobs from Google"
 )
 
-chat_history = []
-
-query = input("User: ")
-
-chat_history.append(HumanMessage(content=query))
-
-messages = [
-    SystemMessage(content="""
-You are a research planner.
-
-Break the user's question into 5 smaller research questions
-that will help gather complete information.
-
-Return them as a numbered list.
-""")
-] + chat_history
-
-sub_questions_text = model.invoke(messages).content
-
-chat_history.append(AIMessage(content=sub_questions_text))
-
-print("\nGenerated Sub Questions:\n", sub_questions_text)
-
-search = SerpAPIWrapper(serpapi_api_key=os.getenv("SERPAPI_KEY"))
-
-sub_questions = [
-    q.strip() for q in sub_questions_text.split("\n") if q.strip()
-]
-
-links = []
-
-for q in sub_questions:
+def scrape_website(url: str):
     try:
-        results = search.results(q)
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        for r in results["organic_results"][:2]:
-            links.append(r["link"])
+        text = soup.get_text(separator=" ", strip=True)
 
+        return text[:3000] 
     except Exception as e:
-        print("Search error:", e)
+        return f"Error scraping: {str(e)}"
 
-# remove duplicate links
-links = list(set(links))
+scrape_tool = Tool(
+    name="Web Scraper",
+    func=scrape_website,
+    description="Scrape content from a given URL"
+)
 
-print("\nCollected Links:")
-for l in links:
-    print(l)
+def save_to_file(data: str):
+    try:
+        parsed = json.loads(data)
 
-loader = WebBaseLoader(links[:5])
-docs = loader.load()
+        with open("job_list.json", "w") as f:
+            json.dump(parsed, f, indent=4)
 
-data = []
+        return "Saved to job_list.json successfully"
+    except Exception as e:
+        return f"Error saving file: {str(e)}"
 
-for doc in docs:
-    text = doc.page_content.replace("\n", " ")
-    data.append(text[:1000])
+file_tool = Tool(
+    name="File Writer",
+    func=save_to_file,
+    description="Save structured JSON data into a file"
+)
 
-context = "\n\n".join(data)
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0
+)
 
-messages = [
-    SystemMessage(content="""
-You are a research assistant.
+tools = [search_tool, scrape_tool, file_tool]
 
-Using the provided webpage data, create a structured report.
+agent = initialize_agent(
+    tools,
+    llm,
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True
+)
 
-Return output in this format:
+query = """
+Find 5 AI agent developer jobs.
+For each job extract:
+- title
+- company
+- location
+- link
 
-Topic
-Key Insights
-Important Trends
-Sources
-Conclusion
-"""),
-
-    HumanMessage(content=f"""
-User Query:
-{query}
-
-Data:
-{context}
-
-Sources:
-{links}
-""")
+Return ONLY JSON format like:
+[
+  {
+    "title": "...",
+    "company": "...",
+    "location": "...",
+    "link": "..."
+  }
 ]
 
-response = model.invoke(messages)
+Then save it using File Writer tool.
+"""
 
-chat_history.append(AIMessage(content=response.content))
-
-print("\nFinal Research Report:\n")
-print(response.content)
+agent.run(query)

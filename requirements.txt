@@ -1,7 +1,7 @@
 langchain
 langchain-community
-langchain-nvidia-ai-endpoints
-python-dotenv
+langchain-openai
 serpapi
+python-dotenv
 beautifulsoup4
 requests
